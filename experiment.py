@@ -23,7 +23,7 @@ RESOURCES = {'local' : {
                  },
              
              'archer' : {
-                 'resource' : 'epsrc.archer',
+                 'resource' : 'epsrc.archer_orte',
                  'project'  : 'e290',
                  'queue'    : 'short',
                  'schema'   : None,
@@ -38,8 +38,24 @@ RESOURCES = {'local' : {
              
              'stampede' : {
                  'resource' : 'xsede.stampede',
-                 'project'  : 'TG-MCB090174' ,
+                 'project'  : 'TG-MCB150124',
+               # 'project'  : 'TG-MCB090174',
                  'queue'    : 'normal',
+                 'schema'   : None,
+                 },
+             
+             'bw' : {
+                 'resource' : 'ncsa.bw',
+                 'project'  : 'gkd' ,
+                 'queue'    : 'normal',
+                 'schema'   : 'gsissh',
+                 },
+             
+             'comet' : {
+                 'resource' : 'xsede.comet',
+                 'project'  : 'TG-MCB090174',
+               # 'project'  : 'TG-MCB150124', 
+                 'queue'    : 'compute',
                  'schema'   : None,
                  },
              
@@ -79,55 +95,16 @@ RESOURCES = {'local' : {
                  }
              }
 
-#------------------------------------------------------------------------------
-#
-def pilot_state_cb (pilot, state):
-
-    if not pilot:
-        return
-
-    print "[Callback]: ComputePilot '%s' state: %s." % (pilot.uid, state)
-
-    if state == rp.FAILED:
-        sys.exit (1)
-
 
 #------------------------------------------------------------------------------
 #
-def unit_state_cb (unit, state):
-
-    if not unit:
-        return
-
-
-    print "[Callback]: unit %s on %s: %s." % (unit.uid, unit.pilot_id, state)
-
-    if state in [rp.FAILED, rp.DONE, rp.CANCELED]:
-        print "[Callback]: %s" % state
-
-
-    if state == rp.FAILED:
-        print "stderr: %s" % unit.stderr
-      # sys.exit(2)
-
-
-#------------------------------------------------------------------------------
-#
-def wait_queue_size_cb(umgr, wait_queue_size):
-
-    print "[Callback]: wait_queue_size: %s." % wait_queue_size
-
-
-#------------------------------------------------------------------------------
-#
-def run_experiment(n_cores, n_units, resources, runtime, cu_load, agent_config, 
+def run_experiment(n_cores, n_units, resources, runtime, cu_load, agent_cfg, 
         scheduler, queue=None):
 
     # Create a new session. No need to try/except this: if session creation
     # fails, there is not much we can do anyways...
-    sid = None
     session = rp.Session()
-    print "session id: %s" % session.uid
+    sid     = session.uid
 
     # all other pilot code is now tried/excepted.  If an exception is caught, we
     # can rely on the session object to exist and be valid, and we can thus tear
@@ -135,9 +112,7 @@ def run_experiment(n_cores, n_units, resources, runtime, cu_load, agent_config,
     # clause...
     try:
 
-        pmgr = rp.PilotManager(session=session)
-        pmgr.register_callback(pilot_state_cb)
-
+        pmgr   = rp.PilotManager(session=session)
         pilots = list()
 
         for resource in resources:
@@ -149,57 +124,49 @@ def run_experiment(n_cores, n_units, resources, runtime, cu_load, agent_config,
             pdesc.resource      = RESOURCES[resource]['resource']
             pdesc.cores         = n_cores
             pdesc.project       = RESOURCES[resource]['project']
-            pdesc.queue         = queue
             pdesc.runtime       = runtime
             pdesc.cleanup       = False
             pdesc.access_schema = RESOURCES[resource]['schema']
-            pdesc._config       = agent_config
+            pdesc.exit_on_error = True
+            pdesc._config       = agent_cfg
+
+            if queue and resource != 'local':
+                print 'queue: %s'%queue
+                pdesc.queue     = queue
 
             pilot = pmgr.submit_pilots(pdesc)
 
-            input_sd_pilot = {
-                    'source': 'file:///etc/passwd',
-                    'target': 'staging:///f1',
-                    'action': rp.TRANSFER
-                    }
-            pilot.stage_in (input_sd_pilot)
-            pilots.append (pilot)
+            for pin in cu_load['pilot_inputs']:
+                pilot.stage_in(pin)
+
+            pilots.append(pilot)
 
 
         umgr = rp.UnitManager(session=session, scheduler=scheduler)
-        umgr.register_callback(unit_state_cb,      rp.UNIT_STATE)
-        umgr.register_callback(wait_queue_size_cb, rp.WAIT_QUEUE_SIZE)
         umgr.add_pilots(pilots)
-
-        input_sd_umgr   = {'source':'/etc/group',    'target': 'f2',                'action': rp.TRANSFER}
-        input_sd_agent  = {'source':'staging:///f1', 'target': 'f1',                'action': rp.LINK}
-        output_sd_agent = {'source':'f1',            'target': 'staging:///f1.bak', 'action': rp.COPY}
-        output_sd_umgr  = {'source':'f2',            'target': 'f2.bak',            'action': rp.TRANSFER}
 
         cuds = list()
         for unit_count in range(0, n_units):
             cud = rp.ComputeUnitDescription()
             cud.executable     = cu_load['executable']
             cud.arguments      = cu_load['arguments']
+            cud.environment    = cu_load['environment']
             cud.cores          = cu_load['cores']
-            cud.input_staging  = [ input_sd_umgr,  input_sd_agent]
-            cud.output_staging = [output_sd_umgr, output_sd_agent]
+            cud.input_staging  = cu_load['inputs']
+            cud.output_staging = cu_load['outputs']
             cuds.append(cud)
 
         units = umgr.submit_units(cuds)
 
         umgr.wait_units()
 
-        for cu in units:
-            print "* Task %s state %s, exit code: %s, started: %s, finished: %s" \
-                % (cu.uid, cu.state, cu.exit_code, cu.start_time, cu.stop_time)
-
       # os.system ("radicalpilot-stats -m stat,plot -s %s > %s.stat" % (session.uid, session_name))
 
 
     except Exception as e:
         # Something unexpected happened in the pilot code above
-        print "caught Exception: %s" % e
+        import logging
+        logging.exception("caught Exception")
         raise
 
     except (KeyboardInterrupt, SystemExit) as e:
@@ -207,19 +174,13 @@ def run_experiment(n_cores, n_units, resources, runtime, cu_load, agent_config,
         # corresponding KeyboardInterrupt exception for shutdown.  We also catch
         # SystemExit (which gets raised if the main threads exits for some other
         # reason).
-        print "need to exit now: %s" % e
+        pass
 
     finally:
         # always clean up the session, no matter if we caught an exception or
         # not.
-        print "closing session"
-      # time.sleep (10) # give time to finish clones...
-        sid = session.uid
         session.close (cleanup=False) # keep the DB entries...
 
-    if sid:
-        os.system('mkdir -p profs/%s' % sid)
-        profiles = rpu.fetch_profiles(sid=sid, tgt='profs/%s' % sid)
 
     return sid
 
@@ -235,7 +196,7 @@ if __name__ == "__main__":
     parser.add_option('-u', '--units',     dest='units')
     parser.add_option('-t', '--time',      dest='runtime')
     parser.add_option('-l', '--load',      dest='load')
-    parser.add_option('-a', '--agent',     dest='agent')
+    parser.add_option('-a', '--agent_cfg', dest='agent_cfg')
     parser.add_option('-r', '--resources', dest='resources')
     parser.add_option('-s', '--scheduler', dest='scheduler')
     parser.add_option('-q', '--queue',     dest='queue')
@@ -247,7 +208,7 @@ if __name__ == "__main__":
     resources = options.resources
     runtime   = options.runtime
     load      = options.load
-    agent     = options.agent
+    agent_cfg = options.agent_cfg
     scheduler = options.scheduler
     queue     = options.queue
 
@@ -261,7 +222,7 @@ if __name__ == "__main__":
     if not runtime  : raise ValueError ("need pilot runtime")
     if not resources: raise ValueError ("need target resource")
     if not load     : raise ValueError ("need load config")
-    if not agent    : raise ValueError ("need agent config")
+    if not agent_cfg: raise ValueError ("need agent config")
 
     if not queue    : queue = None
     
@@ -271,14 +232,15 @@ if __name__ == "__main__":
         if not resource in RESOURCES:
             raise ValueError ("unknown resource %s" % resource)
 
-    cu_load      = ru.read_json (load)
+    cu_load = ru.read_json (load)
 
     n_cores = int(n_cores)
     n_units = int(n_units)
     runtime = int(runtime)
 
     sid = run_experiment (n_cores, n_units, resources, runtime, cu_load,
-            agent, scheduler, queue)
+            agent_cfg, scheduler, queue)
 
-    print "session id: %s" % sid
+    with open('last.sid', 'w') as f:
+        f.write("%s\n" % sid)
 

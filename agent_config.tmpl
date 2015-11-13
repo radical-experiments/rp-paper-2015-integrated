@@ -1,5 +1,6 @@
 
-
+# This config is an examplary for a large pilot, as it uses two dedicated nodes
+# for all agent components.
 {
     # directory for staging files inside the agent sandbox
     "staging_area"         : "staging_area",
@@ -20,9 +21,9 @@
     "heartbeat_interval"   : 10,
 
     "agent_layout" : {
-        "agent.0"   : {
+        "agent_0"   : {
             "target"     : "local",
-            "sub_agents" : [],
+            "sub_agents" : [###sub_agents###],
             "pull_units" : true,
             "bridges" : [
                 # which bridges are to be started by this agent
@@ -37,13 +38,98 @@
                 "agent_state_pubsub"
             ],
             "components" : {
-                # how many instances of the respective components should be started
-                "agent_staging_input_component"  : ###worker###,
-                "agent_scheduling_component"     : 1,
-                "agent_executing_component"      : ###worker###,
-                "agent_staging_output_component" : ###worker###
+                "AgentSchedulingComponent" : ###sch_worker###
+            }
+        },
+        "agent_1"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
+            }
+        },
+        "agent_2"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
+            }
+        },
+        "agent_3"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
+            }
+        },
+        "agent_4"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
+            }
+        },
+        "agent_5"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
+            }
+        },
+        "agent_6"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
+            }
+        },
+        "agent_7"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
+            }
+        },
+        "agent_8"   : {
+            "target"     : "node",
+            "components" : {
+                "AgentStagingInputComponent"  : ###inp_worker###,
+                "AgentExecutingComponent"     : ###exe_worker###,
+                "AgentStagingOutputComponent" : ###out_worker###
             }
         }
+    },
+
+    # factor by which the number of units are increased at a certain step.  Value of
+    # "1" will leave the units unchanged.  Any blowup will leave on unit as the
+    # original, and will then create clones with an changed unit ID (see blowup()).
+    "clone" : {
+        "AgentWorker"                 : {"input" : 1, "output" : ###inp_clone###},
+        "AgentStagingInputComponent"  : {"input" : 1, "output" : ###sch_clone###},
+        "AgentSchedulingComponent"    : {"input" : 1, "output" : ###exe_clone###},
+        "AgentExecutingComponent"     : {"input" : 1, "output" : ###out_clone###},
+        "AgentStagingOutputComponent" : {"input" : 1, "output" : 1}
+    },
+
+    # flag to drop all blown-up units at some point in the pipeline.  The units
+    # with the original IDs will again be left untouched, but all other units are
+    # silently discarded.
+    # 0: drop nothing
+    # 1: drop clones
+    # 2: drop everything
+    "drop" : {
+        "AgentWorker"                 : {"input" : 0, "output" : 0},
+        "AgentStagingInputComponent"  : {"input" : 0, "output" : ###inp_drop###},
+        "AgentSchedulingComponent"    : {"input" : 0, "output" : ###sch_drop###},
+        "AgentExecutingComponent"     : {"input" : 0, "output" : ###exe_drop###},
+        "AgentStagingOutputComponent" : {"input" : 0, "output" : ###out_drop###}
     }
 }
 

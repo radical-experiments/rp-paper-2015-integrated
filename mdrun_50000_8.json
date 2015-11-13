@@ -1,0 +1,27 @@
+
+# mdrun -nt 8 -o traj.trr -e ener.edr -s topol.tpr -g mdlog.log -cpo state.cpt -c outgro
+
+{
+    "cores"        : 8,
+    "executable"   : "mdrun",
+    "arguments"    : ["-nt",  "8",
+                      "-o",   "traj.trr",
+                      "-e",   "ener.edr",
+                      "-s",   "topol.tpr",
+                      "-g",   "mdlog.log",
+                      "-cpo", "state.cpt",
+                      "-c",   "outgro"],
+    "environment"  : {},
+    "inputs"       : [{
+                     "source": "staging:///topol.tpr",
+                     "target": "topol.tpr",
+                     "action": "Link"
+                     }],
+    "outputs"      : [],
+    "pilot_inputs" : [{
+                     "source": "file://localhost//home/merzky/saga/experiments/rp-paper-2015-integrated/topol.tpr",
+                     "target": "staging:///topol.tpr",
+                     "action": "Transfer"
+                     }]
+}
+
